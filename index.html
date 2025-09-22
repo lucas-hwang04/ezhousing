@@ -1,66 +1,465 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Student Housing</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taiwan Housing Hub - Find Your Home</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: #333;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: #667eea;
+        }
+
+        .language-selector {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .lang-btn {
+            padding: 0.3rem 0.8rem;
+            border: 1px solid #667eea;
+            background: transparent;
+            color: #667eea;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .lang-btn.active, .lang-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        main {
+            margin-top: 100px;
+            padding: 2rem 0;
+        }
+
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            color: white;
+        }
+
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .search-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            margin: 2rem auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .search-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input, .form-group select {
+            padding: 0.8rem;
+            border: 2px solid #e1e1e1;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.3s;
+            margin-top: 1rem;
+        }
+
+        .search-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .search-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 4rem 0;
+        }
+
+        .feature-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .listings {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+
+        .listing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .listing-card {
+            border: 1px solid #e1e1e1;
+            border-radius: 15px;
+            overflow: hidden;
+            transition: transform 0.3s;
+            background: white;
+        }
+
+        .listing-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+
+        .listing-image {
+            height: 200px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .listing-content {
+            padding: 1.5rem;
+        }
+
+        .listing-price {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+
+        .listing-location {
+            color: #666;
+            margin-bottom: 1rem;
+        }
+
+        .listing-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-tag {
+            background: #f0f0f0;
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.9rem;
+        }
+
+        .contact-btn {
+            width: 100%;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 0.8rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .contact-btn:hover {
+            background: #5a6fd8;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #d00;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        .success {
+            background: #e6ffe6;
+            color: #0a0;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .close-btn {
+            float: right;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hero h1 {
+                font-size: 2rem;
+            }
+
+            .search-form {
+                grid-template-columns: 1fr;
+            }
+
+            .features {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
-<body class="container py-4">
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">🏠 Taiwan Housing Hub</div>
+            <ul class="nav-links">
+                <li><a href="#search" data-lang="nav-search">Search</a></li>
+                <li><a href="#guide" data-lang="nav-guide">Guide</a></li>
+                <li><a href="#contact" data-lang="nav-contact">Contact</a></li>
+                <li><a href="#login" data-lang="nav-login">Login</a></li>
+            </ul>
+            <div class="language-selector">
+                <button class="lang-btn active" onclick="changeLanguage('en')">EN</button>
+                <button class="lang-btn" onclick="changeLanguage('zh')">中文</button>
+                <button class="lang-btn" onclick="changeLanguage('vi')">VI</button>
+            </div>
+        </nav>
+    </header>
 
-  <h2>🏠 Listings</h2>
-  <div id="listings" class="row"></div>
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1 data-lang="hero-title">Find Your Perfect Home in Taiwan</h1>
+                <p data-lang="hero-subtitle">Helping international students overcome language barriers in finding accommodation</p>
+            </div>
+        </section>
 
-  <hr>
-  <h2>Add Listing</h2>
-  <form id="listingForm">
-    <input type="text" id="title" placeholder="Title" required class="form-control mb-2">
-    <input type="number" id="rent" placeholder="Rent" required class="form-control mb-2">
-    <input type="text" id="location" placeholder="Location" required class="form-control mb-2">
-    <input type="text" id="contact" placeholder="Contact (LINE/Email)" required class="form-control mb-2">
-    <button type="submit" class="btn btn-primary">Submit</button>
-  </form>
+        <section class="search-section container">
+            <h2 data-lang="search-title">Search Properties</h2>
+            <form class="search-form" id="searchForm">
+                <div class="form-group">
+                    <label data-lang="location-label">Location</label>
+                    <select name="location" id="locationSelect">
+                        <option value="">Select City</option>
+                        <option value="taipei">Taipei</option>
+                        <option value="taichung">Taichung</option>
+                        <option value="kaohsiung">Kaohsiung</option>
+                        <option value="taoyuan">Taoyuan</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label data-lang="price-label">Max Price (TWD)</label>
+                    <input type="number" name="maxPrice" id="maxPriceInput" placeholder="15000">
+                </div>
+                <div class="form-group">
+                    <label data-lang="type-label">Property Type</label>
+                    <select name="propertyType" id="typeSelect">
+                        <option value="">Any Type</option>
+                        <option value="studio">Studio</option>
+                        <option value="1bed">1 Bedroom</option>
+                        <option value="2bed">2 Bedroom</option>
+                        <option value="shared">Shared Room</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label data-lang="university-label">Near University</label>
+                    <select name="university" id="universitySelect">
+                        <option value="">Any</option>
+                        <option value="ntu">National Taiwan University</option>
+                        <option value="nctu">National Yang Ming Chiao Tung University</option>
+                        <option value="nthu">National Tsing Hua University</option>
+                    </select>
+                </div>
+            </form>
+            <button class="search-btn" onclick="searchProperties()" data-lang="search-btn" id="searchButton">Search Properties</button>
+            
+            <div id="searchMessage"></div>
+        </section>
 
-  <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbxmUfilMMXclq9KsdQ62QaTDNEPkt-ao4-df5RDDgYNc7gnGrvvvTL8I32g1hbXi1zu/exec";
+        <section class="features container">
+            <div class="feature-card">
+                <div class="feature-icon">🌍</div>
+                <h3 data-lang="multilingual-title">Multilingual Support</h3>
+                <p data-lang="multilingual-desc">Interface available in English, Chinese, and Vietnamese</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💬</div>
+                <h3 data-lang="translation-title">Translation Help</h3>
+                <p data-lang="translation-desc">Pre-written templates and translation assistance for landlord communication</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🗺️</div>
+                <h3 data-lang="map-title">Interactive Maps</h3>
+                <p data-lang="map-desc">Find properties near your university, shopping centers, and transportation</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">✅</div>
+                <h3 data-lang="verified-title">Verified Listings</h3>
+                <p data-lang="verified-desc">All properties verified for international student friendliness</p>
+            </div>
+        </section>
 
-    // Load listings
-    async function loadListings() {
-      const res = await fetch(`${API_URL}?action=getListings`);
-      const data = await res.json();
-      let html = "";
-      data.forEach(item => {
-        html += `
-          <div class="col-4 card m-2 p-2">
-            <h5>${item.Title}</h5>
-            <p>Rent: ${item.Rent} NT$</p>
-            <p>Location: ${item.Location}</p>
-            <p>Contact: ${item.Contact}</p>
-            <p>Verified: ${item.Verified}</p>
-            <p>Rating: ${item.Rating}</p>
-          </div>
-        `;
-      });
-      document.getElementById("listings").innerHTML = html;
-    }
+        <section class="listings container">
+            <h2 data-lang="featured-title">Featured Properties</h2>
+            <div id="loadingMessage" class="loading" style="display: none;">Loading properties...</div>
+            <div class="listing-grid" id="listingGrid">
+                <!-- Properties will be loaded here dynamically -->
+            </div>
+        </section>
+    </main>
 
-    // Add listing
-    document.getElementById("listingForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const data = {
-        action: "addListing",
-        Title: document.getElementById("title").value,
-        Rent: document.getElementById("rent").value,
-        Location: document.getElementById("location").value,
-        Contact: document.getElementById("contact").value
-      };
-      await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify(data)
-      });
-      alert("Listing added!");
-      loadListings();
-    });
+    <!-- Contact Modal -->
+    <div id="contactModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeContactModal()">&times;</span>
+            <h3>Contact Landlord</h3>
+            <p>Choose a message template:</p>
+            <textarea id="messageTemplate" rows="5" style="width: 100%; margin: 1rem 0; padding: 0.5rem;"></textarea>
+            <button onclick="sendMessage()" style="width: 100%; padding: 0.8rem; background: #667eea; color: white; border: none; border-radius: 8px;">Send Message</button>
+        </div>
+    </div>
 
-    loadListings();
-  </script>
-</body>
-</html>
+    <script>
+        // Configuration - REPLACE WITH YOUR GOOGLE APPS SCRIPT URL
+        const API_
