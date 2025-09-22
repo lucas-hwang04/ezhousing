@@ -1,45 +1,3 @@
-<!--
-Taiwan Housing Hub – Starter Kit
-Front-end: index.html (single-file demo)
-Back-end: Google Apps Script (Code.gs) + Google Sheets schema
-Readme-style setup notes are embedded below.
-
-IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
--->
-
-<!-- ========================= README / SETUP NOTES =========================
-1) Create Google Sheet (Database)
-   - Create a spreadsheet with 3 sheets named exactly:
-     * Users      (A:F) -> id, username, password_hash, role, created_at, status
-     * Housings   (A:K) -> id, landlord_id, title, district, address, price, room_type, amenities, photos, contact, created_at
-     * Reviews    (A:G) -> id, user_id, housing_id, rating, comment, created_at, status
-
-   (You can skip manual creation: run initSampleData() from Apps Script below to auto-create.)
-
-2) Apps Script (Back-end API)
-   - In Google Sheet: Extensions → Apps Script → paste Code.gs content (below).
-   - Set SPREADSHEET_ID constant to your sheet's ID (the long hash in the URL).
-   - Deploy: Deploy → New deployment → Type: Web app
-       * Execute as: Me
-       * Who has access: Anyone
-     Copy the "Web app URL" → use it as WEB_APP_URL in this index.html.
-
-   CORS: Apps Script is inconsistent with CORS headers.
-   This starter adds an OPTIONS handler + attempts to set headers.
-   If your browser still blocks, use the JSONP fallback (?callback=...) as shown below for GETs.
-
-3) GitHub Pages (Front-end hosting)
-   - Create repo → Add this index.html → Settings → Pages → Source: main / root → Save.
-   - Your site URL: https://<username>.github.io/<repo>/
-   - Update WEB_APP_URL below to your deployed Apps Script URL.
-
-4) Security notes (MVP vs. production)
-   - For demo only: passwords are hashed via SHA-256 on the client + stored hash in Sheet.
-   - Prefer Google OAuth or Firebase Auth for production.
-   - Gas Web App should be set to "Anyone" only for public read endpoints. For write endpoints, consider token-based auth.
-
-========================================================================== -->
-
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -52,9 +10,9 @@ IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, sans-serif; background: linear-gradient(120deg,#0ea5e9,#7c3aed); color:#e5e7eb; }
     header { padding:16px 24px; display:flex; align-items:center; justify-content:space-between; backdrop-filter: blur(6px); background: rgba(17,24,39,.45); position:sticky; top:0; z-index:10; }
     header h1 { margin:0; font-size:20px; letter-spacing:.5px; }
-    header .lang { display:flex; gap:8px; }
-    header button { background:transparent; border:1px solid #334155; color:#e2e8f0; padding:6px 10px; border-radius:10px; cursor:pointer; }
-    header button.active { border-color: var(--pri); color: var(--pri); }
+    nav { display:flex; align-items:center; gap:12px; }
+    nav button, nav a { background:transparent; border:1px solid #334155; color:#e2e8f0; padding:6px 12px; border-radius:10px; cursor:pointer; text-decoration:none; }
+    nav button.active, nav a.active { border-color: var(--pri); color: var(--pri); }
     main { max-width:1100px; margin:24px auto; padding:0 16px 64px; }
     .card { background:#0b1220c0; border:1px solid #1f2937; border-radius:16px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
     .grid { display:grid; gap:16px; grid-template-columns: repeat(12, 1fr); }
@@ -68,26 +26,41 @@ IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
     .item h3 { margin:0; font-size:16px; }
     .muted { color:#94a3b8; font-size:12px; }
     .pill { padding:2px 8px; background:#111827; border:1px solid #334155; border-radius:999px; font-size:12px; margin-left:6px; }
-    form.auth { display:grid; gap:8px; }
+    form.auth, form.create { display:grid; gap:8px; }
     form.auth input, form.create input, form.create textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; }
     form.create textarea { min-height:72px; }
     .row { display:grid; gap:8px; grid-template-columns: repeat(2, 1fr); }
     .danger { color:#fca5a5; }
     .success { color:#86efac; }
-    a.cta { display:inline-block; padding:8px 12px; border-radius:10px; background:#111827; border:1px solid #334155; color:#e2e8f0; text-decoration:none; }
     footer { text-align:center; color:#93c5fd; margin-top:24px; font-size:12px; }
+    .hidden { display:none; }
     @media (max-width: 900px){ .list{grid-column: span 12;} .aside{grid-column: span 12;} }
   </style>
 </head>
 <body>
   <header>
     <h1>🏠 Taiwan Housing Hub</h1>
-    <div class="lang">
-      <button data-lang="vi" class="active">VI</button>
-      <button data-lang="en">EN</button>
-      <button data-lang="zh">中文</button>
-    </div>
+    <nav>
+      <div id="navAuth">
+        <button id="btnLoginToggle">Login</button>
+        <span id="userInfo" class="hidden">
+          Xin chào, <span id="username"></span> | <a href="#" id="btnLogout">Logout</a>
+        </span>
+      </div>
+    </nav>
   </header>
+
+  <!-- Hidden login form -->
+  <div id="loginBox" class="card hidden" style="max-width:300px; margin:20px auto;">
+    <h3>Đăng nhập</h3>
+    <form class="auth" id="formLogin">
+      <input id="loginUser" placeholder="username" required />
+      <input id="loginPass" type="password" placeholder="password" required />
+      <button>Login</button>
+      <div id="loginMsg" class="muted"></div>
+    </form>
+  </div>
+
   <main class="grid">
     <section class="filters card">
       <input id="qDistrict" placeholder="Quận/Huyện (Zhongli, Taoyuan…)" />
@@ -107,16 +80,6 @@ IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
     <section class="list" id="list"></section>
 
     <aside class="aside">
-      <div class="card">
-        <h3>Đăng nhập</h3>
-        <form class="auth" id="formLogin">
-          <input id="loginUser" placeholder="username" required />
-          <input id="loginPass" type="password" placeholder="password" required />
-          <button>Login</button>
-          <div id="loginMsg" class="muted"></div>
-        </form>
-      </div>
-
       <div class="card">
         <h3>Tạo listing (Chủ nhà)</h3>
         <form class="create" id="formCreate">
@@ -138,20 +101,13 @@ IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
           <div id="createMsg" class="muted"></div>
         </form>
       </div>
-
-      <div class="card">
-        <h3>Ghi chú</h3>
-        <p class="muted">Nếu CORS lỗi, dùng JSONP: thêm <code>&callback=handleJSONP</code> vào URL (GET).</p>
-      </div>
     </aside>
   </main>
   <footer>© Taiwan Housing Hub – MVP</footer>
 
   <script>
-    // ====== CONFIG ======
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwjLsaG_WC46OWZuRcKOh4bgLWO0zWYIM1-BIQp3zhRpCbqMXXZUjz8QxnCxnr-ecAE/exec"; // e.g., https://script.google.com/macros/s/XXX/exec
+    const WEB_APP_URL = "REPLACE_WITH_YOUR_APPS_SCRIPT_WEB_APP_URL";
 
-    // ====== UTIL ======
     async function sha256(str){
       const enc = new TextEncoder();
       const data = enc.encode(str);
@@ -203,19 +159,8 @@ IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
         renderList(data.items);
         $("#status").textContent = `Tìm thấy ${data.items?.length||0} kết quả`;
       }catch(err){
-        $("#status").innerHTML = `<span class="danger">Fetch lỗi (${err?.message}). Thử JSONP bên dưới.</span>`;
+        $("#status").innerHTML = `<span class="danger">Fetch lỗi (${err?.message}).</span>`;
       }
-    }
-
-    // JSONP fallback (for GET only)
-    function jsonp(url, cbName){
-      return new Promise((resolve,reject)=>{
-        window[cbName] = (payload)=>{ delete window[cbName]; resolve(payload); };
-        const s = document.createElement('script');
-        s.src = `${url}${url.includes('?')?'&':'?'}callback=${cbName}`;
-        s.onerror = reject;
-        document.body.appendChild(s);
-      });
     }
 
     async function login(ev){
@@ -225,16 +170,12 @@ IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
       const passHash = await sha256($("#loginPass").value);
       try{
         const url = `${WEB_APP_URL}?action=login&username=${encodeURIComponent(username)}&password_hash=${passHash}`;
-        let data;
-        try{
-          const res = await fetch(url);
-          data = await res.json();
-        }catch{
-          data = await jsonp(url, 'handleJSONP'); // fallback
-        }
+        const res = await fetch(url);
+        const data = await res.json();
         if(data?.ok){
           localStorage.setItem('auth', JSON.stringify(data.user));
-          $("#loginMsg").innerHTML = `<span class='success'>Xin chào, ${data.user.username}!</span>`;
+          updateAuthUI();
+          $("#loginBox").classList.add('hidden');
         } else {
           $("#loginMsg").innerHTML = `<span class='danger'>Đăng nhập thất bại.</span>`;
         }
@@ -246,7 +187,7 @@ IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
     async function createListing(ev){
       ev.preventDefault();
       const auth = JSON.parse(localStorage.getItem('auth')||'null');
-      if(!auth){ $("#createMsg").innerHTML = `<span class='danger'>Hãy đăng nhập trước.</span>`; return; }
+      if(!auth){ $("#createMsg").innerHTML = `<span class='danger'>Bạn phải đăng nhập để tạo listing.</span>`; return; }
       const payload = {
         action: 'addListing',
         landlord_id: auth.id,
@@ -269,7 +210,19 @@ IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
           $("#createMsg").innerHTML = `<span class='danger'>Không tạo được.</span>`;
         }
       }catch(err){
-        $("#createMsg").innerHTML = `<span class='danger'>POST lỗi (${err?.message}). Apps Script có thể chặn CORS với POST. Tạm thời dùng Google Form hoặc tạo qua trang Apps Script.</span>`;
+        $("#createMsg").innerHTML = `<span class='danger'>POST lỗi (${err?.message}).</span>`;
+      }
+    }
+
+    function updateAuthUI(){
+      const auth = JSON.parse(localStorage.getItem('auth')||'null');
+      if(auth){
+        $("#username").textContent = auth.username;
+        $("#userInfo").classList.remove('hidden');
+        $("#btnLoginToggle").classList.add('hidden');
+      }else{
+        $("#userInfo").classList.add('hidden');
+        $("#btnLoginToggle").classList.remove('hidden');
       }
     }
 
@@ -277,181 +230,11 @@ IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
     $("#btnReset").addEventListener('click', ()=>{ ["#qDistrict","#qMin","#qMax","#qRoom"].forEach(s=>$(s).value=''); search(); });
     $("#formLogin").addEventListener('submit', login);
     $("#formCreate").addEventListener('submit', createListing);
+    $("#btnLoginToggle").addEventListener('click', ()=>{ $("#loginBox").classList.toggle('hidden'); });
+    $("#btnLogout").addEventListener('click', (e)=>{ e.preventDefault(); localStorage.removeItem('auth'); updateAuthUI(); });
 
-    // Initial load
+    updateAuthUI();
     search();
   </script>
 </body>
 </html>
-
-
-/* ========================= Apps Script (Code.gs) =========================
-Paste this into Apps Script editor. Set SPREADSHEET_ID, then deploy Web App.
-*/
-
-/*** CONFIG ***/
-const SPREADSHEET_ID = 'REPLACE_WITH_YOUR_SPREADSHEET_ID';
-const SHEETS = { USERS:'Users', HOUSINGS:'Housings', REVIEWS:'Reviews' };
-
-/*** HELPERS ***/
-function getDb(){ return SpreadsheetApp.openById(SPREADSHEET_ID); }
-function getSheet(name){
-  const ss = getDb();
-  let sh = ss.getSheetByName(name);
-  if(!sh){ sh = ss.insertSheet(name); }
-  return sh;
-}
-function nowISO(){ return new Date().toISOString(); }
-function uuid(){ return Utilities.getUuid(); }
-function parseAmenities(str){ return (str||'').split(/;|,|\n/).map(s=>s.trim()).filter(Boolean); }
-function parsePhotos(str){ return (str||'').split(/;|,|\n/).map(s=>s.trim()).filter(Boolean); }
-function corsHeaders(output){
-  try{ output.setHeader('Access-Control-Allow-Origin','*'); }catch(e){}
-  try{ output.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS'); }catch(e){}
-  try{ output.setHeader('Access-Control-Allow-Headers','Content-Type'); }catch(e){}
-  return output;
-}
-
-/*** INIT SAMPLE DATA (run once) ***/
-function initSampleData(){
-  const u = getSheet(SHEETS.USERS); u.clear();
-  const h = getSheet(SHEETS.HOUSINGS); h.clear();
-  const r = getSheet(SHEETS.REVIEWS); r.clear();
-
-  u.getRange(1,1,1,6).setValues([[ 'id','username','password_hash','role','created_at','status' ]]);
-  h.getRange(1,1,1,11).setValues([[ 'id','landlord_id','title','district','address','price','room_type','amenities','photos','contact','created_at' ]]);
-  r.getRange(1,1,1,7).setValues([[ 'id','user_id','housing_id','rating','comment','created_at','status' ]]);
-
-  const user1 = [uuid(),'student01','e3afed0047b08059d0fada10f400c1e5','student',nowISO(),'active']; // 'hello' MD5 demo (replace with SHA-256 client hash)
-  const user2 = [uuid(),'landlord01','e3afed0047b08059d0fada10f400c1e5','landlord',nowISO(),'active'];
-  u.getRange(2,1,2,6).setValues([user1,user2]);
-
-  const l1 = [uuid(), user2[0], 'Phòng gần Yuan Ze', 'Zhongli', 'YZU Dorm Area', 9500, 'studio', 'máy giặt; điều hoà; gần bus', 'https://images.unsplash.com/photo-1501183638710-841dd1904471', 'line: @yzroom', nowISO()];
-  const l2 = [uuid(), user2[0], 'Căn hộ mới sửa', 'Taoyuan', 'Near Taoyuan HSR', 16000, '1BR', 'thang máy; bãi xe', 'https://images.unsplash.com/photo-1505692794403-34cb04e7a5a7', 'phone: 09xx-xxx-xxx', nowISO()];
-  h.getRange(2,1,2,11).setValues([l1,l2]);
-
-  const rv = [uuid(), user1[0], l1[0], 5, 'Chủ nhà thân thiện, gần trường.', nowISO(),'approved'];
-  r.getRange(2,1,1,7).setValues([rv]);
-
-  SpreadsheetApp.flush();
-}
-
-/*** GET data helpers ***/
-function listHousings(filters){
-  const sh = getSheet(SHEETS.HOUSINGS);
-  const rows = sh.getDataRange().getValues();
-  const head = rows.shift();
-  const idx = Object.fromEntries(head.map((k,i)=>[k,i]));
-  let items = rows.map(r=>({
-    id: r[idx.id], landlord_id: r[idx.landlord_id], title: r[idx.title], district: r[idx.district], address: r[idx.address],
-    price: Number(r[idx.price]||0), room_type: r[idx.room_type], amenities: parseAmenities(r[idx.amenities]), photos: parsePhotos(r[idx.photos]),
-    contact: r[idx.contact], created_at: r[idx.created_at]
-  }));
-  if(filters){
-    if(filters.district){ items = items.filter(it=> (it.district||'').toLowerCase().includes(filters.district.toLowerCase())); }
-    if(filters.min){ items = items.filter(it=> it.price >= Number(filters.min)); }
-    if(filters.max){ items = items.filter(it=> it.price <= Number(filters.max)); }
-    if(filters.room){ items = items.filter(it=> (it.room_type||'').toLowerCase() === String(filters.room).toLowerCase()); }
-  }
-  return items;
-}
-
-function findUser(username, password_hash){
-  const sh = getSheet(SHEETS.USERS);
-  const rows = sh.getDataRange().getValues();
-  const head = rows.shift(); const idx = Object.fromEntries(head.map((k,i)=>[k,i]));
-  for(const r of rows){
-    if(r[idx.username] === username && r[idx.password_hash] === password_hash){
-      return { id:r[idx.id], username:r[idx.username], role:r[idx.role], status:r[idx.status] };
-    }
-  }
-  return null;
-}
-
-function insertListing(payload){
-  const sh = getSheet(SHEETS.HOUSINGS);
-  const id = uuid();
-  const row = [ id, payload.landlord_id, payload.title, payload.district, payload.address, Number(payload.price||0), payload.room_type,
-                payload.amenities||'', payload.photos||'', payload.contact||'', nowISO() ];
-  sh.appendRow(row);
-  return id;
-}
-
-/*** HTTP HANDLERS ***/
-function doOptions(e){
-  const out = ContentService.createTextOutput('OK');
-  return corsHeaders(out);
-}
-
-function doGet(e){
-  const params = e.parameter || {};
-  const action = params.action || 'ping';
-  const cb = params.callback; // JSONP callback if provided
-  let result = { ok:true, action };
-  try{
-    if(action === 'getListings'){
-      const items = listHousings({ district: params.district, min: params.min, max: params.max, room: params.room });
-      result.items = items;
-    } else if(action === 'login'){
-      const user = findUser(params.username, params.password_hash);
-      result.ok = !!user; result.user = user;
-    } else if(action === 'ping'){
-      result.time = nowISO();
-    } else {
-      result.ok = false; result.error = 'Unknown action';
-    }
-  }catch(err){ result.ok=false; result.error = String(err); }
-
-  const body = JSON.stringify(result);
-  if(cb){ // JSONP
-    const out = ContentService.createTextOutput(`${cb}(${body})`);
-    out.setMimeType(ContentService.MimeType.JAVASCRIPT);
-    return corsHeaders(out);
-  } else {
-    const out = ContentService.createTextOutput(body);
-    out.setMimeType(ContentService.MimeType.JSON);
-    return corsHeaders(out);
-  }
-}
-
-function doPost(e){
-  let payload = {};
-  try{ payload = JSON.parse(e.postData.contents); }catch(err){}
-  const action = payload.action;
-  let result = { ok:false, action };
-  try{
-    if(action === 'addListing'){
-      const id = insertListing(payload);
-      result.ok = true; result.id = id;
-    } else if(action === 'addReview'){
-      // TODO: Add review similarly
-      result.ok = false; result.error = 'Not implemented in starter';
-    } else if(action === 'addUser'){
-      // TODO: Add registration (with unique username check)
-      result.ok = false; result.error = 'Not implemented in starter';
-    } else {
-      result.ok = false; result.error = 'Unknown action';
-    }
-  }catch(err){ result.ok=false; result.error=String(err); }
-
-  const out = ContentService.createTextOutput(JSON.stringify(result));
-  out.setMimeType(ContentService.MimeType.JSON);
-  return corsHeaders(out);
-}
-
-
-/* ========================= QUICK TROUBLESHOOTING =========================
-- TypeError: Cannot read properties of null (reading 'clearContents')
-  → Happens when a sheet tab doesn't exist but code expects it. This starter
-    always calls getSheet(name) which creates the sheet if missing.
-
-- CORS blocked by browser
-  → Use JSONP (?callback=handleJSONP) for GET requests from GitHub Pages.
-  → For POST, CORS may still fail depending on browser/App Script. In MVP,
-    create listings via Apps Script UI or switch to GET-with-query (less ideal).
-    For production, consider tiny proxy (Cloudflare Workers) or OAuth.
-
-- 403 when calling Web App
-  → Re-deploy Web App with access: Anyone, Execute as: Me.
-
-========================================================================== */
