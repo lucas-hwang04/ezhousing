@@ -1,465 +1,457 @@
+<!--
+Taiwan Housing Hub – Starter Kit
+Front-end: index.html (single-file demo)
+Back-end: Google Apps Script (Code.gs) + Google Sheets schema
+Readme-style setup notes are embedded below.
+
+IMPORTANT: Replace PLACEHOLDERs (SPREADSHEET_ID, WEB_APP_URL).
+-->
+
+<!-- ========================= README / SETUP NOTES =========================
+1) Create Google Sheet (Database)
+   - Create a spreadsheet with 3 sheets named exactly:
+     * Users      (A:F) -> id, username, password_hash, role, created_at, status
+     * Housings   (A:K) -> id, landlord_id, title, district, address, price, room_type, amenities, photos, contact, created_at
+     * Reviews    (A:G) -> id, user_id, housing_id, rating, comment, created_at, status
+
+   (You can skip manual creation: run initSampleData() from Apps Script below to auto-create.)
+
+2) Apps Script (Back-end API)
+   - In Google Sheet: Extensions → Apps Script → paste Code.gs content (below).
+   - Set SPREADSHEET_ID constant to your sheet's ID (the long hash in the URL).
+   - Deploy: Deploy → New deployment → Type: Web app
+       * Execute as: Me
+       * Who has access: Anyone
+     Copy the "Web app URL" → use it as WEB_APP_URL in this index.html.
+
+   CORS: Apps Script is inconsistent with CORS headers.
+   This starter adds an OPTIONS handler + attempts to set headers.
+   If your browser still blocks, use the JSONP fallback (?callback=...) as shown below for GETs.
+
+3) GitHub Pages (Front-end hosting)
+   - Create repo → Add this index.html → Settings → Pages → Source: main / root → Save.
+   - Your site URL: https://<username>.github.io/<repo>/
+   - Update WEB_APP_URL below to your deployed Apps Script URL.
+
+4) Security notes (MVP vs. production)
+   - For demo only: passwords are hashed via SHA-256 on the client + stored hash in Sheet.
+   - Prefer Google OAuth or Firebase Auth for production.
+   - Gas Web App should be set to "Anyone" only for public read endpoints. For write endpoints, consider token-based auth.
+
+========================================================================== -->
+
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Taiwan Housing Hub - Find Your Home</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 20px;
-        }
-
-        header {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-            position: fixed;
-            width: 100%;
-            top: 0;
-            z-index: 1000;
-        }
-
-        nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1rem 0;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .nav-links {
-            display: flex;
-            list-style: none;
-            gap: 2rem;
-        }
-
-        .nav-links a {
-            text-decoration: none;
-            color: #333;
-            transition: color 0.3s;
-        }
-
-        .nav-links a:hover {
-            color: #667eea;
-        }
-
-        .language-selector {
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .lang-btn {
-            padding: 0.3rem 0.8rem;
-            border: 1px solid #667eea;
-            background: transparent;
-            color: #667eea;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .lang-btn.active, .lang-btn:hover {
-            background: #667eea;
-            color: white;
-        }
-
-        main {
-            margin-top: 100px;
-            padding: 2rem 0;
-        }
-
-        .hero {
-            text-align: center;
-            padding: 4rem 0;
-            color: white;
-        }
-
-        .hero h1 {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .hero p {
-            font-size: 1.2rem;
-            margin-bottom: 2rem;
-            opacity: 0.9;
-        }
-
-        .search-section {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 2rem;
-            margin: 2rem auto;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-
-        .search-form {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .form-group label {
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            color: #333;
-        }
-
-        .form-group input, .form-group select {
-            padding: 0.8rem;
-            border: 2px solid #e1e1e1;
-            border-radius: 10px;
-            font-size: 1rem;
-            transition: border-color 0.3s;
-        }
-
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .search-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 1rem 2rem;
-            border-radius: 50px;
-            font-size: 1.1rem;
-            cursor: pointer;
-            transition: transform 0.3s;
-            margin-top: 1rem;
-        }
-
-        .search-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-
-        .search-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            margin: 4rem 0;
-        }
-
-        .feature-card {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-            padding: 2rem;
-            border-radius: 15px;
-            text-align: center;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
-            transition: transform 0.3s;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-5px);
-        }
-
-        .feature-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        .listings {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 2rem;
-            margin: 2rem 0;
-        }
-
-        .listing-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }
-
-        .listing-card {
-            border: 1px solid #e1e1e1;
-            border-radius: 15px;
-            overflow: hidden;
-            transition: transform 0.3s;
-            background: white;
-        }
-
-        .listing-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-        }
-
-        .listing-image {
-            height: 200px;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.2rem;
-        }
-
-        .listing-content {
-            padding: 1.5rem;
-        }
-
-        .listing-price {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 0.5rem;
-        }
-
-        .listing-location {
-            color: #666;
-            margin-bottom: 1rem;
-        }
-
-        .listing-features {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-
-        .feature-tag {
-            background: #f0f0f0;
-            padding: 0.3rem 0.8rem;
-            border-radius: 15px;
-            font-size: 0.9rem;
-        }
-
-        .contact-btn {
-            width: 100%;
-            background: #667eea;
-            color: white;
-            border: none;
-            padding: 0.8rem;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .contact-btn:hover {
-            background: #5a6fd8;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 2rem;
-            color: #666;
-        }
-
-        .error {
-            background: #ffe6e6;
-            color: #d00;
-            padding: 1rem;
-            border-radius: 8px;
-            margin: 1rem 0;
-        }
-
-        .success {
-            background: #e6ffe6;
-            color: #0a0;
-            padding: 1rem;
-            border-radius: 8px;
-            margin: 1rem 0;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 2000;
-        }
-
-        .modal-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            max-width: 500px;
-            width: 90%;
-        }
-
-        .close-btn {
-            float: right;
-            font-size: 1.5rem;
-            cursor: pointer;
-        }
-
-        @media (max-width: 768px) {
-            .nav-links {
-                display: none;
-            }
-
-            .hero h1 {
-                font-size: 2rem;
-            }
-
-            .search-form {
-                grid-template-columns: 1fr;
-            }
-
-            .features {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Taiwan Housing Hub – MVP</title>
+  <style>
+    :root { --bg: #0f172a; --card: #111827; --muted: #94a3b8; --pri: #22d3ee; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, sans-serif; background: linear-gradient(120deg,#0ea5e9,#7c3aed); color:#e5e7eb; }
+    header { padding:16px 24px; display:flex; align-items:center; justify-content:space-between; backdrop-filter: blur(6px); background: rgba(17,24,39,.45); position:sticky; top:0; z-index:10; }
+    header h1 { margin:0; font-size:20px; letter-spacing:.5px; }
+    header .lang { display:flex; gap:8px; }
+    header button { background:transparent; border:1px solid #334155; color:#e2e8f0; padding:6px 10px; border-radius:10px; cursor:pointer; }
+    header button.active { border-color: var(--pri); color: var(--pri); }
+    main { max-width:1100px; margin:24px auto; padding:0 16px 64px; }
+    .card { background:#0b1220c0; border:1px solid #1f2937; border-radius:16px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .grid { display:grid; gap:16px; grid-template-columns: repeat(12, 1fr); }
+    .filters { grid-column: span 12; display:grid; gap:12px; grid-template-columns: repeat(12, 1fr); }
+    .filters input, .filters select { grid-column: span 3; padding:10px 12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; }
+    .filters button { grid-column: span 2; padding:10px 12px; border-radius:12px; border:1px solid #334155; background:#111827; color:#e2e8f0; cursor:pointer; }
+    .list { grid-column: span 8; display:grid; gap:12px; }
+    .aside { grid-column: span 4; display:grid; gap:12px; }
+    .item { display:grid; grid-template-columns: 120px 1fr; gap:12px; padding:12px; background:#0b1220; border:1px solid #1f2937; border-radius:14px; }
+    .item img { width:120px; height:90px; object-fit:cover; border-radius:10px; background:#111; }
+    .item h3 { margin:0; font-size:16px; }
+    .muted { color:#94a3b8; font-size:12px; }
+    .pill { padding:2px 8px; background:#111827; border:1px solid #334155; border-radius:999px; font-size:12px; margin-left:6px; }
+    form.auth { display:grid; gap:8px; }
+    form.auth input, form.create input, form.create textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; }
+    form.create textarea { min-height:72px; }
+    .row { display:grid; gap:8px; grid-template-columns: repeat(2, 1fr); }
+    .danger { color:#fca5a5; }
+    .success { color:#86efac; }
+    a.cta { display:inline-block; padding:8px 12px; border-radius:10px; background:#111827; border:1px solid #334155; color:#e2e8f0; text-decoration:none; }
+    footer { text-align:center; color:#93c5fd; margin-top:24px; font-size:12px; }
+    @media (max-width: 900px){ .list{grid-column: span 12;} .aside{grid-column: span 12;} }
+  </style>
 </head>
 <body>
-    <header>
-        <nav class="container">
-            <div class="logo">🏠 Taiwan Housing Hub</div>
-            <ul class="nav-links">
-                <li><a href="#search" data-lang="nav-search">Search</a></li>
-                <li><a href="#guide" data-lang="nav-guide">Guide</a></li>
-                <li><a href="#contact" data-lang="nav-contact">Contact</a></li>
-                <li><a href="#login" data-lang="nav-login">Login</a></li>
-            </ul>
-            <div class="language-selector">
-                <button class="lang-btn active" onclick="changeLanguage('en')">EN</button>
-                <button class="lang-btn" onclick="changeLanguage('zh')">中文</button>
-                <button class="lang-btn" onclick="changeLanguage('vi')">VI</button>
-            </div>
-        </nav>
-    </header>
-
-    <main>
-        <section class="hero">
-            <div class="container">
-                <h1 data-lang="hero-title">Find Your Perfect Home in Taiwan</h1>
-                <p data-lang="hero-subtitle">Helping international students overcome language barriers in finding accommodation</p>
-            </div>
-        </section>
-
-        <section class="search-section container">
-            <h2 data-lang="search-title">Search Properties</h2>
-            <form class="search-form" id="searchForm">
-                <div class="form-group">
-                    <label data-lang="location-label">Location</label>
-                    <select name="location" id="locationSelect">
-                        <option value="">Select City</option>
-                        <option value="taipei">Taipei</option>
-                        <option value="taichung">Taichung</option>
-                        <option value="kaohsiung">Kaohsiung</option>
-                        <option value="taoyuan">Taoyuan</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label data-lang="price-label">Max Price (TWD)</label>
-                    <input type="number" name="maxPrice" id="maxPriceInput" placeholder="15000">
-                </div>
-                <div class="form-group">
-                    <label data-lang="type-label">Property Type</label>
-                    <select name="propertyType" id="typeSelect">
-                        <option value="">Any Type</option>
-                        <option value="studio">Studio</option>
-                        <option value="1bed">1 Bedroom</option>
-                        <option value="2bed">2 Bedroom</option>
-                        <option value="shared">Shared Room</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label data-lang="university-label">Near University</label>
-                    <select name="university" id="universitySelect">
-                        <option value="">Any</option>
-                        <option value="ntu">National Taiwan University</option>
-                        <option value="nctu">National Yang Ming Chiao Tung University</option>
-                        <option value="nthu">National Tsing Hua University</option>
-                    </select>
-                </div>
-            </form>
-            <button class="search-btn" onclick="searchProperties()" data-lang="search-btn" id="searchButton">Search Properties</button>
-            
-            <div id="searchMessage"></div>
-        </section>
-
-        <section class="features container">
-            <div class="feature-card">
-                <div class="feature-icon">🌍</div>
-                <h3 data-lang="multilingual-title">Multilingual Support</h3>
-                <p data-lang="multilingual-desc">Interface available in English, Chinese, and Vietnamese</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">💬</div>
-                <h3 data-lang="translation-title">Translation Help</h3>
-                <p data-lang="translation-desc">Pre-written templates and translation assistance for landlord communication</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🗺️</div>
-                <h3 data-lang="map-title">Interactive Maps</h3>
-                <p data-lang="map-desc">Find properties near your university, shopping centers, and transportation</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">✅</div>
-                <h3 data-lang="verified-title">Verified Listings</h3>
-                <p data-lang="verified-desc">All properties verified for international student friendliness</p>
-            </div>
-        </section>
-
-        <section class="listings container">
-            <h2 data-lang="featured-title">Featured Properties</h2>
-            <div id="loadingMessage" class="loading" style="display: none;">Loading properties...</div>
-            <div class="listing-grid" id="listingGrid">
-                <!-- Properties will be loaded here dynamically -->
-            </div>
-        </section>
-    </main>
-
-    <!-- Contact Modal -->
-    <div id="contactModal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeContactModal()">&times;</span>
-            <h3>Contact Landlord</h3>
-            <p>Choose a message template:</p>
-            <textarea id="messageTemplate" rows="5" style="width: 100%; margin: 1rem 0; padding: 0.5rem;"></textarea>
-            <button onclick="sendMessage()" style="width: 100%; padding: 0.8rem; background: #667eea; color: white; border: none; border-radius: 8px;">Send Message</button>
-        </div>
+  <header>
+    <h1>🏠 Taiwan Housing Hub</h1>
+    <div class="lang">
+      <button data-lang="vi" class="active">VI</button>
+      <button data-lang="en">EN</button>
+      <button data-lang="zh">中文</button>
     </div>
+  </header>
+  <main class="grid">
+    <section class="filters card">
+      <input id="qDistrict" placeholder="Quận/Huyện (Zhongli, Taoyuan…)" />
+      <input id="qMin" type="number" placeholder="Giá tối thiểu" />
+      <input id="qMax" type="number" placeholder="Giá tối đa" />
+      <select id="qRoom">
+        <option value="">Loại phòng</option>
+        <option value="studio">Studio</option>
+        <option value="1BR">1 phòng ngủ</option>
+        <option value="2BR">2 phòng ngủ</option>
+      </select>
+      <button id="btnSearch">Tìm kiếm</button>
+      <button id="btnReset">Đặt lại</button>
+      <span id="status" class="muted"></span>
+    </section>
 
-    <script>
-        // Configuration - REPLACE WITH YOUR GOOGLE APPS SCRIPT URL
-        const API_
+    <section class="list" id="list"></section>
+
+    <aside class="aside">
+      <div class="card">
+        <h3>Đăng nhập</h3>
+        <form class="auth" id="formLogin">
+          <input id="loginUser" placeholder="username" required />
+          <input id="loginPass" type="password" placeholder="password" required />
+          <button>Login</button>
+          <div id="loginMsg" class="muted"></div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Tạo listing (Chủ nhà)</h3>
+        <form class="create" id="formCreate">
+          <div class="row">
+            <input id="cTitle" placeholder="Tiêu đề" required />
+            <input id="cDistrict" placeholder="Khu vực" required />
+          </div>
+          <div class="row">
+            <input id="cAddress" placeholder="Địa chỉ" required />
+            <input id="cPrice" type="number" placeholder="Giá" required />
+          </div>
+          <div class="row">
+            <input id="cRoom" placeholder="Loại phòng (studio/1BR/2BR)" required />
+            <input id="cPhotos" placeholder="Ảnh (URL, phân tách bằng ; )" />
+          </div>
+          <textarea id="cAmenities" placeholder="Tiện ích (máy giặt; điều hoà; gần MRT)"></textarea>
+          <input id="cContact" placeholder="Liên hệ (Line/Phone)" />
+          <button>Đăng</button>
+          <div id="createMsg" class="muted"></div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Ghi chú</h3>
+        <p class="muted">Nếu CORS lỗi, dùng JSONP: thêm <code>&callback=handleJSONP</code> vào URL (GET).</p>
+      </div>
+    </aside>
+  </main>
+  <footer>© Taiwan Housing Hub – MVP</footer>
+
+  <script>
+    // ====== CONFIG ======
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwjLsaG_WC46OWZuRcKOh4bgLWO0zWYIM1-BIQp3zhRpCbqMXXZUjz8QxnCxnr-ecAE/exec"; // e.g., https://script.google.com/macros/s/XXX/exec
+
+    // ====== UTIL ======
+    async function sha256(str){
+      const enc = new TextEncoder();
+      const data = enc.encode(str);
+      const hash = await crypto.subtle.digest('SHA-256', data);
+      return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    function $(sel){ return document.querySelector(sel); }
+    function el(tag, attrs={}, children=[]) {
+      const e = document.createElement(tag);
+      Object.entries(attrs).forEach(([k,v])=>{
+        if(k==="class") e.className=v; else if(k==="html") e.innerHTML=v; else e.setAttribute(k,v);
+      });
+      children.forEach(c=> e.appendChild(c));
+      return e;
+    }
+
+    function renderList(items){
+      const list = $("#list");
+      list.innerHTML = "";
+      if(!items || !items.length){ list.appendChild(el('div',{class:'card'},[el('div',{html:'Không có kết quả.'})])); return; }
+      for(const it of items){
+        const img = (it.photos?.[0]) || 'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?w=640&auto=format&fit=crop&q=60';
+        const row = el('div',{class:'item'},[
+          el('img',{src: img, alt: it.title || 'house'}),
+          el('div',{},[
+            el('h3',{html: it.title || '(Không tiêu đề)'}),
+            el('div',{class:'muted', html: `${it.address || ''} · ${it.district || ''}` }),
+            el('div',{html: `<span class="pill">$${it.price || 'N/A'}</span> <span class="pill">${it.room_type||''}</span>`}),
+            el('div',{class:'muted', html: (it.amenities||[]).join(' · ') })
+          ])
+        ]);
+        list.appendChild(row);
+      }
+    }
+
+    async function search(){
+      $("#status").textContent = "Đang tải…";
+      const params = new URLSearchParams({
+        action: 'getListings',
+        district: $("#qDistrict").value,
+        min: $("#qMin").value,
+        max: $("#qMax").value,
+        room: $("#qRoom").value
+      });
+      try{
+        const res = await fetch(`${WEB_APP_URL}?${params.toString()}`, { method:'GET' });
+        const data = await res.json();
+        renderList(data.items);
+        $("#status").textContent = `Tìm thấy ${data.items?.length||0} kết quả`;
+      }catch(err){
+        $("#status").innerHTML = `<span class="danger">Fetch lỗi (${err?.message}). Thử JSONP bên dưới.</span>`;
+      }
+    }
+
+    // JSONP fallback (for GET only)
+    function jsonp(url, cbName){
+      return new Promise((resolve,reject)=>{
+        window[cbName] = (payload)=>{ delete window[cbName]; resolve(payload); };
+        const s = document.createElement('script');
+        s.src = `${url}${url.includes('?')?'&':'?'}callback=${cbName}`;
+        s.onerror = reject;
+        document.body.appendChild(s);
+      });
+    }
+
+    async function login(ev){
+      ev.preventDefault();
+      $("#loginMsg").textContent = "";
+      const username = $("#loginUser").value.trim();
+      const passHash = await sha256($("#loginPass").value);
+      try{
+        const url = `${WEB_APP_URL}?action=login&username=${encodeURIComponent(username)}&password_hash=${passHash}`;
+        let data;
+        try{
+          const res = await fetch(url);
+          data = await res.json();
+        }catch{
+          data = await jsonp(url, 'handleJSONP'); // fallback
+        }
+        if(data?.ok){
+          localStorage.setItem('auth', JSON.stringify(data.user));
+          $("#loginMsg").innerHTML = `<span class='success'>Xin chào, ${data.user.username}!</span>`;
+        } else {
+          $("#loginMsg").innerHTML = `<span class='danger'>Đăng nhập thất bại.</span>`;
+        }
+      }catch(err){
+        $("#loginMsg").innerHTML = `<span class='danger'>Lỗi: ${err?.message}</span>`;
+      }
+    }
+
+    async function createListing(ev){
+      ev.preventDefault();
+      const auth = JSON.parse(localStorage.getItem('auth')||'null');
+      if(!auth){ $("#createMsg").innerHTML = `<span class='danger'>Hãy đăng nhập trước.</span>`; return; }
+      const payload = {
+        action: 'addListing',
+        landlord_id: auth.id,
+        title: $("#cTitle").value,
+        district: $("#cDistrict").value,
+        address: $("#cAddress").value,
+        price: Number($("#cPrice").value||0),
+        room_type: $("#cRoom").value,
+        amenities: $("#cAmenities").value,
+        photos: $("#cPhotos").value,
+        contact: $("#cContact").value
+      };
+      try{
+        const res = await fetch(WEB_APP_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if(data?.ok){
+          $("#createMsg").innerHTML = `<span class='success'>Đăng thành công (#${data.id}).</span>`;
+          search();
+        } else {
+          $("#createMsg").innerHTML = `<span class='danger'>Không tạo được.</span>`;
+        }
+      }catch(err){
+        $("#createMsg").innerHTML = `<span class='danger'>POST lỗi (${err?.message}). Apps Script có thể chặn CORS với POST. Tạm thời dùng Google Form hoặc tạo qua trang Apps Script.</span>`;
+      }
+    }
+
+    $("#btnSearch").addEventListener('click', search);
+    $("#btnReset").addEventListener('click', ()=>{ ["#qDistrict","#qMin","#qMax","#qRoom"].forEach(s=>$(s).value=''); search(); });
+    $("#formLogin").addEventListener('submit', login);
+    $("#formCreate").addEventListener('submit', createListing);
+
+    // Initial load
+    search();
+  </script>
+</body>
+</html>
+
+
+/* ========================= Apps Script (Code.gs) =========================
+Paste this into Apps Script editor. Set SPREADSHEET_ID, then deploy Web App.
+*/
+
+/*** CONFIG ***/
+const SPREADSHEET_ID = 'REPLACE_WITH_YOUR_SPREADSHEET_ID';
+const SHEETS = { USERS:'Users', HOUSINGS:'Housings', REVIEWS:'Reviews' };
+
+/*** HELPERS ***/
+function getDb(){ return SpreadsheetApp.openById(SPREADSHEET_ID); }
+function getSheet(name){
+  const ss = getDb();
+  let sh = ss.getSheetByName(name);
+  if(!sh){ sh = ss.insertSheet(name); }
+  return sh;
+}
+function nowISO(){ return new Date().toISOString(); }
+function uuid(){ return Utilities.getUuid(); }
+function parseAmenities(str){ return (str||'').split(/;|,|\n/).map(s=>s.trim()).filter(Boolean); }
+function parsePhotos(str){ return (str||'').split(/;|,|\n/).map(s=>s.trim()).filter(Boolean); }
+function corsHeaders(output){
+  try{ output.setHeader('Access-Control-Allow-Origin','*'); }catch(e){}
+  try{ output.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS'); }catch(e){}
+  try{ output.setHeader('Access-Control-Allow-Headers','Content-Type'); }catch(e){}
+  return output;
+}
+
+/*** INIT SAMPLE DATA (run once) ***/
+function initSampleData(){
+  const u = getSheet(SHEETS.USERS); u.clear();
+  const h = getSheet(SHEETS.HOUSINGS); h.clear();
+  const r = getSheet(SHEETS.REVIEWS); r.clear();
+
+  u.getRange(1,1,1,6).setValues([[ 'id','username','password_hash','role','created_at','status' ]]);
+  h.getRange(1,1,1,11).setValues([[ 'id','landlord_id','title','district','address','price','room_type','amenities','photos','contact','created_at' ]]);
+  r.getRange(1,1,1,7).setValues([[ 'id','user_id','housing_id','rating','comment','created_at','status' ]]);
+
+  const user1 = [uuid(),'student01','e3afed0047b08059d0fada10f400c1e5','student',nowISO(),'active']; // 'hello' MD5 demo (replace with SHA-256 client hash)
+  const user2 = [uuid(),'landlord01','e3afed0047b08059d0fada10f400c1e5','landlord',nowISO(),'active'];
+  u.getRange(2,1,2,6).setValues([user1,user2]);
+
+  const l1 = [uuid(), user2[0], 'Phòng gần Yuan Ze', 'Zhongli', 'YZU Dorm Area', 9500, 'studio', 'máy giặt; điều hoà; gần bus', 'https://images.unsplash.com/photo-1501183638710-841dd1904471', 'line: @yzroom', nowISO()];
+  const l2 = [uuid(), user2[0], 'Căn hộ mới sửa', 'Taoyuan', 'Near Taoyuan HSR', 16000, '1BR', 'thang máy; bãi xe', 'https://images.unsplash.com/photo-1505692794403-34cb04e7a5a7', 'phone: 09xx-xxx-xxx', nowISO()];
+  h.getRange(2,1,2,11).setValues([l1,l2]);
+
+  const rv = [uuid(), user1[0], l1[0], 5, 'Chủ nhà thân thiện, gần trường.', nowISO(),'approved'];
+  r.getRange(2,1,1,7).setValues([rv]);
+
+  SpreadsheetApp.flush();
+}
+
+/*** GET data helpers ***/
+function listHousings(filters){
+  const sh = getSheet(SHEETS.HOUSINGS);
+  const rows = sh.getDataRange().getValues();
+  const head = rows.shift();
+  const idx = Object.fromEntries(head.map((k,i)=>[k,i]));
+  let items = rows.map(r=>({
+    id: r[idx.id], landlord_id: r[idx.landlord_id], title: r[idx.title], district: r[idx.district], address: r[idx.address],
+    price: Number(r[idx.price]||0), room_type: r[idx.room_type], amenities: parseAmenities(r[idx.amenities]), photos: parsePhotos(r[idx.photos]),
+    contact: r[idx.contact], created_at: r[idx.created_at]
+  }));
+  if(filters){
+    if(filters.district){ items = items.filter(it=> (it.district||'').toLowerCase().includes(filters.district.toLowerCase())); }
+    if(filters.min){ items = items.filter(it=> it.price >= Number(filters.min)); }
+    if(filters.max){ items = items.filter(it=> it.price <= Number(filters.max)); }
+    if(filters.room){ items = items.filter(it=> (it.room_type||'').toLowerCase() === String(filters.room).toLowerCase()); }
+  }
+  return items;
+}
+
+function findUser(username, password_hash){
+  const sh = getSheet(SHEETS.USERS);
+  const rows = sh.getDataRange().getValues();
+  const head = rows.shift(); const idx = Object.fromEntries(head.map((k,i)=>[k,i]));
+  for(const r of rows){
+    if(r[idx.username] === username && r[idx.password_hash] === password_hash){
+      return { id:r[idx.id], username:r[idx.username], role:r[idx.role], status:r[idx.status] };
+    }
+  }
+  return null;
+}
+
+function insertListing(payload){
+  const sh = getSheet(SHEETS.HOUSINGS);
+  const id = uuid();
+  const row = [ id, payload.landlord_id, payload.title, payload.district, payload.address, Number(payload.price||0), payload.room_type,
+                payload.amenities||'', payload.photos||'', payload.contact||'', nowISO() ];
+  sh.appendRow(row);
+  return id;
+}
+
+/*** HTTP HANDLERS ***/
+function doOptions(e){
+  const out = ContentService.createTextOutput('OK');
+  return corsHeaders(out);
+}
+
+function doGet(e){
+  const params = e.parameter || {};
+  const action = params.action || 'ping';
+  const cb = params.callback; // JSONP callback if provided
+  let result = { ok:true, action };
+  try{
+    if(action === 'getListings'){
+      const items = listHousings({ district: params.district, min: params.min, max: params.max, room: params.room });
+      result.items = items;
+    } else if(action === 'login'){
+      const user = findUser(params.username, params.password_hash);
+      result.ok = !!user; result.user = user;
+    } else if(action === 'ping'){
+      result.time = nowISO();
+    } else {
+      result.ok = false; result.error = 'Unknown action';
+    }
+  }catch(err){ result.ok=false; result.error = String(err); }
+
+  const body = JSON.stringify(result);
+  if(cb){ // JSONP
+    const out = ContentService.createTextOutput(`${cb}(${body})`);
+    out.setMimeType(ContentService.MimeType.JAVASCRIPT);
+    return corsHeaders(out);
+  } else {
+    const out = ContentService.createTextOutput(body);
+    out.setMimeType(ContentService.MimeType.JSON);
+    return corsHeaders(out);
+  }
+}
+
+function doPost(e){
+  let payload = {};
+  try{ payload = JSON.parse(e.postData.contents); }catch(err){}
+  const action = payload.action;
+  let result = { ok:false, action };
+  try{
+    if(action === 'addListing'){
+      const id = insertListing(payload);
+      result.ok = true; result.id = id;
+    } else if(action === 'addReview'){
+      // TODO: Add review similarly
+      result.ok = false; result.error = 'Not implemented in starter';
+    } else if(action === 'addUser'){
+      // TODO: Add registration (with unique username check)
+      result.ok = false; result.error = 'Not implemented in starter';
+    } else {
+      result.ok = false; result.error = 'Unknown action';
+    }
+  }catch(err){ result.ok=false; result.error=String(err); }
+
+  const out = ContentService.createTextOutput(JSON.stringify(result));
+  out.setMimeType(ContentService.MimeType.JSON);
+  return corsHeaders(out);
+}
+
+
+/* ========================= QUICK TROUBLESHOOTING =========================
+- TypeError: Cannot read properties of null (reading 'clearContents')
+  → Happens when a sheet tab doesn't exist but code expects it. This starter
+    always calls getSheet(name) which creates the sheet if missing.
+
+- CORS blocked by browser
+  → Use JSONP (?callback=handleJSONP) for GET requests from GitHub Pages.
+  → For POST, CORS may still fail depending on browser/App Script. In MVP,
+    create listings via Apps Script UI or switch to GET-with-query (less ideal).
+    For production, consider tiny proxy (Cloudflare Workers) or OAuth.
+
+- 403 when calling Web App
+  → Re-deploy Web App with access: Anyone, Execute as: Me.
+
+========================================================================== */
