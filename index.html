@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Taiwan Housing Hub – MVP</title>
+  <style>
+    :root { --bg: #0f172a; --card: #111827; --muted: #94a3b8; --pri: #22d3ee; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, sans-serif; background: linear-gradient(120deg,#0ea5e9,#7c3aed); color:#e5e7eb; }
+    header { padding:16px 24px; display:flex; align-items:center; justify-content:space-between; backdrop-filter: blur(6px); background: rgba(17,24,39,.45); position:sticky; top:0; z-index:10; }
+    header h1 { margin:0; font-size:20px; letter-spacing:.5px; }
+    nav { display:flex; align-items:center; gap:12px; }
+    nav button, nav a { background:transparent; border:1px solid #334155; color:#e2e8f0; padding:6px 12px; border-radius:10px; cursor:pointer; text-decoration:none; }
+    nav button.active, nav a.active { border-color: var(--pri); color: var(--pri); }
+    main { max-width:1100px; margin:24px auto; padding:0 16px 64px; }
+    .card { background:#0b1220c0; border:1px solid #1f2937; border-radius:16px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    .grid { display:grid; gap:16px; grid-template-columns: repeat(12, 1fr); }
+    .filters { grid-column: span 12; display:grid; gap:12px; grid-template-columns: repeat(12, 1fr); }
+    .filters input, .filters select { grid-column: span 3; padding:10px 12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; }
+    .filters button { grid-column: span 2; padding:10px 12px; border-radius:12px; border:1px solid #334155; background:#111827; color:#e2e8f0; cursor:pointer; }
+    .list { grid-column: span 8; display:grid; gap:12px; }
+    .aside { grid-column: span 4; display:grid; gap:12px; }
+    .item { display:grid; grid-template-columns: 120px 1fr; gap:12px; padding:12px; background:#0b1220; border:1px solid #1f2937; border-radius:14px; }
+    .item img { width:120px; height:90px; object-fit:cover; border-radius:10px; background:#111; }
+    .item h3 { margin:0; font-size:16px; }
+    .muted { color:#94a3b8; font-size:12px; }
+    .pill { padding:2px 8px; background:#111827; border:1px solid #334155; border-radius:999px; font-size:12px; margin-left:6px; }
+    form.auth, form.create { display:grid; gap:8px; }
+    form.auth input, form.create input, form.create textarea { width:100%; padding:10px 12px; border-radius:12px; border:1px solid #334155; background:#0b1220; color:#e2e8f0; }
+    form.create textarea { min-height:72px; }
+    .row { display:grid; gap:8px; grid-template-columns: repeat(2, 1fr); }
+    .danger { color:#fca5a5; }
+    .success { color:#86efac; }
+    footer { text-align:center; color:#93c5fd; margin-top:24px; font-size:12px; }
+    .hidden { display:none; }
+    @media (max-width: 900px){ .list{grid-column: span 12;} .aside{grid-column: span 12;} }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🏠 Taiwan Housing Hub</h1>
+    <nav>
+      <div id="navAuth">
+        <button id="btnLoginToggle">Login</button>
+        <span id="userInfo" class="hidden">
+          Xin chào, <span id="username"></span> | <a href="#" id="btnLogout">Logout</a>
+        </span>
+      </div>
+    </nav>
+  </header>
+
+  <!-- Hidden login form -->
+  <div id="loginBox" class="card hidden" style="max-width:300px; margin:20px auto;">
+    <h3>Đăng nhập</h3>
+    <form class="auth" id="formLogin">
+      <input id="loginUser" placeholder="username" required />
+      <input id="loginPass" type="password" placeholder="password" required />
+      <button>Login</button>
+      <div id="loginMsg" class="muted"></div>
+    </form>
+  </div>
+
+  <main class="grid">
+    <section class="filters card">
+      <input id="qDistrict" placeholder="Quận/Huyện (Zhongli, Taoyuan…)" />
+      <input id="qMin" type="number" placeholder="Giá tối thiểu" />
+      <input id="qMax" type="number" placeholder="Giá tối đa" />
+      <select id="qRoom">
+        <option value="">Loại phòng</option>
+        <option value="studio">Studio</option>
+        <option value="1BR">1 phòng ngủ</option>
+        <option value="2BR">2 phòng ngủ</option>
+      </select>
+      <button id="btnSearch">Tìm kiếm</button>
+      <button id="btnReset">Đặt lại</button>
+      <span id="status" class="muted"></span>
+    </section>
+
+    <section class="list" id="list"></section>
+
+    <aside class="aside">
+      <div class="card">
+        <h3>Tạo listing (Chủ nhà)</h3>
+        <form class="create" id="formCreate">
+          <div class="row">
+            <input id="cTitle" placeholder="Tiêu đề" required />
+            <input id="cDistrict" placeholder="Khu vực" required />
+          </div>
+          <div class="row">
+            <input id="cAddress" placeholder="Địa chỉ" required />
+            <input id="cPrice" type="number" placeholder="Giá" required />
+          </div>
+          <div class="row">
+            <input id="cRoom" placeholder="Loại phòng (studio/1BR/2BR)" required />
+            <input id="cPhotos" placeholder="Ảnh (URL, phân tách bằng ; )" />
+          </div>
+          <textarea id="cAmenities" placeholder="Tiện ích (máy giặt; điều hoà; gần MRT)"></textarea>
+          <input id="cContact" placeholder="Liên hệ (Line/Phone)" />
+          <button>Đăng</button>
+          <div id="createMsg" class="muted"></div>
+        </form>
+      </div>
+    </aside>
+  </main>
+  <footer>© Taiwan Housing Hub – MVP</footer>
+
+  <script>
+    const WEB_APP_URL = "REPLACE_WITH_YOUR_APPS_SCRIPT_WEB_APP_URL";
+
+    async function sha256(str){
+      const enc = new TextEncoder();
+      const data = enc.encode(str);
+      const hash = await crypto.subtle.digest('SHA-256', data);
+      return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('');
+    }
+
+    function $(sel){ return document.querySelector(sel); }
+    function el(tag, attrs={}, children=[]) {
+      const e = document.createElement(tag);
+      Object.entries(attrs).forEach(([k,v])=>{
+        if(k==="class") e.className=v; else if(k==="html") e.innerHTML=v; else e.setAttribute(k,v);
+      });
+      children.forEach(c=> e.appendChild(c));
+      return e;
+    }
+
+    function renderList(items){
+      const list = $("#list");
+      list.innerHTML = "";
+      if(!items || !items.length){ list.appendChild(el('div',{class:'card'},[el('div',{html:'Không có kết quả.'})])); return; }
+      for(const it of items){
+        const img = (it.photos?.[0]) || 'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?w=640&auto=format&fit=crop&q=60';
+        const row = el('div',{class:'item'},[
+          el('img',{src: img, alt: it.title || 'house'}),
+          el('div',{},[
+            el('h3',{html: it.title || '(Không tiêu đề)'}),
+            el('div',{class:'muted', html: `${it.address || ''} · ${it.district || ''}` }),
+            el('div',{html: `<span class="pill">$${it.price || 'N/A'}</span> <span class="pill">${it.room_type||''}</span>`}),
+            el('div',{class:'muted', html: (it.amenities||[]).join(' · ') })
+          ])
+        ]);
+        list.appendChild(row);
+      }
+    }
+
+    async function search(){
+      $("#status").textContent = "Đang tải…";
+      const params = new URLSearchParams({
+        action: 'getListings',
+        district: $("#qDistrict").value,
+        min: $("#qMin").value,
+        max: $("#qMax").value,
+        room: $("#qRoom").value
+      });
+      try{
+        const res = await fetch(`${WEB_APP_URL}?${params.toString()}`, { method:'GET' });
+        const data = await res.json();
+        renderList(data.items);
+        $("#status").textContent = `Tìm thấy ${data.items?.length||0} kết quả`;
+      }catch(err){
+        $("#status").innerHTML = `<span class="danger">Fetch lỗi (${err?.message}).</span>`;
+      }
+    }
+
+    async function login(ev){
+      ev.preventDefault();
+      $("#loginMsg").textContent = "";
+      const username = $("#loginUser").value.trim();
+      const passHash = await sha256($("#loginPass").value);
+      try{
+        const url = `${WEB_APP_URL}?action=login&username=${encodeURIComponent(username)}&password_hash=${passHash}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if(data?.ok){
+          localStorage.setItem('auth', JSON.stringify(data.user));
+          updateAuthUI();
+          $("#loginBox").classList.add('hidden');
+        } else {
+          $("#loginMsg").innerHTML = `<span class='danger'>Đăng nhập thất bại.</span>`;
+        }
+      }catch(err){
+        $("#loginMsg").innerHTML = `<span class='danger'>Lỗi: ${err?.message}</span>`;
+      }
+    }
+
+    async function createListing(ev){
+      ev.preventDefault();
+      const auth = JSON.parse(localStorage.getItem('auth')||'null');
+      if(!auth){ $("#createMsg").innerHTML = `<span class='danger'>Bạn phải đăng nhập để tạo listing.</span>`; return; }
+      const payload = {
+        action: 'addListing',
+        landlord_id: auth.id,
+        title: $("#cTitle").value,
+        district: $("#cDistrict").value,
+        address: $("#cAddress").value,
+        price: Number($("#cPrice").value||0),
+        room_type: $("#cRoom").value,
+        amenities: $("#cAmenities").value,
+        photos: $("#cPhotos").value,
+        contact: $("#cContact").value
+      };
+      try{
+        const res = await fetch(WEB_APP_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        const data = await res.json();
+        if(data?.ok){
+          $("#createMsg").innerHTML = `<span class='success'>Đăng thành công (#${data.id}).</span>`;
+          search();
+        } else {
+          $("#createMsg").innerHTML = `<span class='danger'>Không tạo được.</span>`;
+        }
+      }catch(err){
+        $("#createMsg").innerHTML = `<span class='danger'>POST lỗi (${err?.message}).</span>`;
+      }
+    }
+
+    function updateAuthUI(){
+      const auth = JSON.parse(localStorage.getItem('auth')||'null');
+      if(auth){
+        $("#username").textContent = auth.username;
+        $("#userInfo").classList.remove('hidden');
+        $("#btnLoginToggle").classList.add('hidden');
+      }else{
+        $("#userInfo").classList.add('hidden');
+        $("#btnLoginToggle").classList.remove('hidden');
+      }
+    }
+
+    $("#btnSearch").addEventListener('click', search);
+    $("#btnReset").addEventListener('click', ()=>{ ["#qDistrict","#qMin","#qMax","#qRoom"].forEach(s=>$(s).value=''); search(); });
+    $("#formLogin").addEventListener('submit', login);
+    $("#formCreate").addEventListener('submit', createListing);
+    $("#btnLoginToggle").addEventListener('click', ()=>{ $("#loginBox").classList.toggle('hidden'); });
+    $("#btnLogout").addEventListener('click', (e)=>{ e.preventDefault(); localStorage.removeItem('auth'); updateAuthUI(); });
+
+    updateAuthUI();
+    search();
+  </script>
+</body>
+</html>
