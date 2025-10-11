@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useContext, useEffect, useCallback } from "react";
 import {
   TextField,
   Typography,
@@ -35,7 +35,7 @@ const NewTransactionForm = () => {
   const { segment } = useSpeechContext();
   const [open, setOpen] = React.useState(false);
 
-  const createTransaction = () => {
+  const createTransaction = useCallback(() => {
     if (Number.isNaN(Number(formData.amount)) || !formData.date.includes("-"))
       return;
 
@@ -54,7 +54,7 @@ const NewTransactionForm = () => {
       id: uuidv4(),
     });
     setFormData(initialState);
-  };
+  }, [formData, addTransaction]);
 
   useEffect(() => {
     if (segment) {
@@ -110,7 +110,7 @@ const NewTransactionForm = () => {
         createTransaction();
       }
     }
-  }, [segment]);
+  }, [segment, createTransaction, formData]);
 
   const selectedCategories =
     formData.type === "Income" ? incomeCategories : expenseCategories;

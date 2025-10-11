@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Grid } from '@mui/material'; // Ensure correct import based on version
+import { Grid } from '@material-ui/core';
 
 import { SpeechState, useSpeechContext } from "@speechly/react-client";
 import { PushToTalkButton, PushToTalkButtonContainer } from '@speechly/react-ui';
